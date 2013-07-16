@@ -1,0 +1,25 @@
+{
+  "name": "retention-memcache",
+  "types": ["module"],
+  "version": "1.4",
+  "homepage": "http://github.com/shinken-monitoring/mod-retention-memcache",
+  "author": "Jean Gabès",
+  "description": "Module for loading/saving retention data from a memcache server",
+  "contributors": [
+    {
+      "name": "Jean Gabès",
+      "email": "naparuba@gmail.com"
+    }
+  ],
+  "repository": "https://github.com/shinken-monitoring/mod-retention-memcache",
+  "keywords": [
+    "module",
+    "scheduler",
+    "retention",
+    "memcache"
+  ],
+  "dependencies": {
+    "shinken": ">=1.4"
+  },
+  "license": "AGPL"
+}
