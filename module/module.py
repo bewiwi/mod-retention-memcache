@@ -38,7 +38,7 @@ from shinken.log import logger
 
 properties = {
     'daemons': ['scheduler'],
-    'type': 'memcache_retention',
+    'type': 'repcache_retention',
     'external': False,
     }
 
@@ -50,23 +50,33 @@ def get_instance(modconf):
     logger.debug("Get a memcache retention scheduler module for plugin %s" % modconf.get_name())
     if not memcache:
         raise Exception('Missing module python-memcache. Please install it.')
-    instance = Memcache_retention_scheduler(modconf)
+    instance = Repcache_retention_scheduler(modconf)
     return instance
 
 
-class Memcache_retention_scheduler(BaseModule):
+class Repcache_retention_scheduler(BaseModule):
     def __init__(self, mod_conf):
         BaseModule.__init__(self, mod_conf)
-        self.server = mod_conf.server
-        self.port = mod_conf.port
+        self.servers = []
+        for server in mod_conf.servers.split(','):
+            self.servers.append(server.strip())
 
     def init(self):
         """
         Called by Scheduler to say 'let's prepare yourself guy'
         """
-        logger.debug("Initialization of the memcache module")
-        #self.return_queue = self.properties['from_queue']
-        self.mc = memcache.Client(['%s:%s' % (self.server, self.port)], debug=0)
+        logger.debug("Initialization of the repcache module")
+
+    def get_memcache_client(self):
+        logger.info("Finding available repcache server")
+        for server in self.servers:
+            mc = memcache.Client([server], debug=0)
+            if mc.servers[0].connect():
+                logger.info("Found server: {}".format(server))
+                return mc
+            logger.warning("server {} is unavailable".format(server))
+        logger.error("No repcache available")
+
 
     def normalize_key(self, key):
         """
@@ -79,13 +89,13 @@ class Memcache_retention_scheduler(BaseModule):
         """
         main function that is called in the retention creation pass
         """
-        logger.debug("[MemcacheRetention] asking me to update the retention objects")
+        logger.debug("[RepcacheRetention] asking me to update the retention objects")
 
         all_data = daemon.get_retention_data()
 
         hosts = all_data['hosts']
         services = all_data['services']
-
+        mc = self.get_memcache_client()
 
         # Now the flat file method
         for h_name in hosts:
@@ -93,25 +103,26 @@ class Memcache_retention_scheduler(BaseModule):
                 h = hosts[h_name]
                 key = self.normalize_key("HOST-%s" % h_name)
                 val = cPickle.dumps(h)
-                self.mc.set(key, val)
+                mc.set(key, val)
             except:
-                logger.error("[MemcacheRetention] error while saving host %s" % key)
+                logger.error("[RepcacheRetention] error while saving host %s" % key)
 
         for (h_name, s_desc) in services:
             try:
                 key = self.normalize_key("SERVICE-%s,%s" % (h_name, s_desc))
                 s = services[(h_name, s_desc)]
                 val = cPickle.dumps(s)
-                self.mc.set(key, val)
+                mc.set(key, val)
             except:
-                logger.error("[MemcacheRetention] error while saving service %s" % key)
+                logger.error("[RepcacheRetention] error while saving service %s" % key)
 
-        self.mc.disconnect_all()
+        mc.disconnect_all()
         logger.info("Retention information updated in Memcache")
 
     # Should return if it succeed in the retention load or not
     def hook_load_retention(self, daemon):
-        logger.debug("[MemcacheRetention] asking me to load the retention objects")
+        logger.debug("[RepcacheRetention] asking me to load the retention objects")
+        mc = self.get_memcache_client()
 
         # We got list of loaded data from retention server
         ret_hosts = {}
@@ -122,31 +133,31 @@ class Memcache_retention_scheduler(BaseModule):
             key = ""
             try:
                 key = self.normalize_key("HOST-%s" % h.host_name)
-                val = self.mc.get(key)
+                val = mc.get(key)
                 if val is not None:
                     val = cPickle.loads(val)
                     ret_hosts[h.host_name] = val
             except:
-                logger.error("[MemcacheRetention] error while loading host %s" % key)
+                logger.error("[RepcacheRetention] error while loading host %s" % key)
 
         for s in daemon.services:
             key = ""
             try:
                 key = self.normalize_key("SERVICE-%s,%s" % (s.host.host_name, s.service_description))
-                val = self.mc.get(key)
+                val = mc.get(key)
                 if val is not None:
                     val = cPickle.loads(val)
                     ret_services[(s.host.host_name, s.service_description)] = val
             except:
-                logger.error("[MemcacheRetention] error while loading service %s" % key)
+                logger.error("[RepcacheRetention] error while loading service %s" % key)
 
-        self.mc.disconnect_all()
+        mc.disconnect_all()
 
         all_data = {'hosts': ret_hosts, 'services': ret_services}
 
         # Ok, now comme load them scheduler :)
         daemon.restore_retention_data(all_data)
 
-        logger.info("[MemcacheRetention] Retention objects loaded successfully.")
+        logger.info("[RepcacheRetention] Retention objects loaded successfully.")
 
         return True

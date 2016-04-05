@@ -1,17 +1,21 @@
 {
-  "name": "retention-memcache",
+  "name": "retention-repcache",
   "types": ["module"],
   "version": "1.4",
   "homepage": "http://github.com/shinken-monitoring/mod-retention-memcache",
-  "author": "Jean Gabès",
+  "author": "Loïc PORTE",
   "description": "Module for loading/saving retention data from a memcache server",
   "contributors": [
+    {
+      "name": "Loïc PORTE",
+      "email": "loic.porte@corp.ovh.com"
+    },
     {
       "name": "Jean Gabès",
       "email": "naparuba@gmail.com"
     }
   ],
-  "repository": "https://github.com/shinken-monitoring/mod-retention-memcache",
+  "repository": "",
   "keywords": [
     "module",
     "scheduler",
